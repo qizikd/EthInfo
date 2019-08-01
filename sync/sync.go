@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/golang/glog"
+	"github.com/qizikd/EthInfo/core/mysql"
 	"github.com/qizikd/EthInfo/db"
 	"math/big"
 	"time"
@@ -55,6 +56,12 @@ func UpdateEthGasUsed() {
 		return
 	}
 	defer client.Close()
+	mysqldb, err := mysql.GetDbConn()
+	if err != nil {
+		glog.Error("连接数据库失败 ", err.Error())
+		return
+	}
+	defer mysqldb.Close()
 	lastid := -1
 	for {
 		txs, err := db.GetEthTxs(lastid, 100)
@@ -65,9 +72,9 @@ func UpdateEthGasUsed() {
 		}
 		if len(txs) == 0 {
 			time.Sleep(1000 * time.Millisecond)
-			fmt.Println(err.Error())
 			continue
 		}
+		dbtx, _ := mysqldb.Begin()
 		fmt.Printf("eth id:%d txid:%s\n", txs[0].Id, txs[0].TxId)
 		for i := 0; i < len(txs); i++ {
 			tx := txs[i]
@@ -78,13 +85,15 @@ func UpdateEthGasUsed() {
 			}
 			gasUsed := big.NewInt(int64(rec.GasUsed))
 			status := rec.Status
-			err = db.UpdateEthGasused(tx.Id, gasUsed.Int64(), int64(status))
+			_, err = mysqldb.Exec(fmt.Sprintf("UPDATE eth SET gasuse = %d, `status` = %d, update_status = 1 WHERE id = %d ",
+				gasUsed.Int64(), int64(status), tx.Id))
 			if err != nil {
 				fmt.Printf("获取交易接受详情失败(%s):%s\n", common.HexToHash(tx.TxId), err.Error())
 				continue
 			}
 			lastid = tx.Id
 		}
+		dbtx.Commit()
 	}
 }
 
@@ -96,9 +105,15 @@ func UpdateErc20GasUsed() {
 		return
 	}
 	defer client.Close()
+	mysqldb, err := mysql.GetDbConn()
+	if err != nil {
+		glog.Error("连接数据库失败 ", err.Error())
+		return
+	}
+	defer mysqldb.Close()
 	lastid := -1
 	for {
-		txs, err := db.GetEthTxs(lastid, 100)
+		txs, err := db.GetErc20Txs(lastid, 100)
 		if err != nil {
 			time.Sleep(1000 * time.Millisecond)
 			fmt.Println(err.Error())
@@ -106,9 +121,10 @@ func UpdateErc20GasUsed() {
 		}
 		if len(txs) == 0 {
 			time.Sleep(1000 * time.Millisecond)
-			fmt.Println(err.Error())
 			continue
 		}
+
+		dbtx, _ := mysqldb.Begin()
 		fmt.Printf("erc20 id:%d txid:%s\n", txs[0].Id, txs[0].TxId)
 		for i := 0; i < len(txs); i++ {
 			tx := txs[i]
@@ -119,17 +135,26 @@ func UpdateErc20GasUsed() {
 			}
 			gasUsed := big.NewInt(int64(rec.GasUsed))
 			status := rec.Status
-			err = db.UpdateEthGasused(tx.Id, gasUsed.Int64(), int64(status))
+			_, err = mysqldb.Exec(fmt.Sprintf("UPDATE erc20 SET gasuse = %d, `status` = %d, update_status = 1 WHERE id = %d ",
+				gasUsed.Int64(), int64(status), tx.Id))
 			if err != nil {
 				fmt.Printf("获取交易接受详情失败(%s):%s\n", common.HexToHash(tx.TxId), err.Error())
 				continue
 			}
 			lastid = tx.Id
 		}
+		dbtx.Commit()
 	}
 }
 
 func sync(block *types.Block, client *ethclient.Client) {
+	db, err := mysql.GetDbConn()
+	if err != nil {
+		glog.Error("连接数据库失败 ", err.Error())
+		return
+	}
+	defer db.Close()
+	tx, _ := db.Begin()
 	for i := 0; i < len(block.Transactions()); i++ {
 		tx := block.Transactions()[i]
 		if tx.To() == nil {
@@ -173,15 +198,21 @@ func sync(block *types.Block, client *ethclient.Client) {
 			} else {
 				continue
 			}
-			err = db.InserErc20tx(block.Number().Int64(), block.Hash().Hex(), tx.Hash().Hex(), from, to, token, value.Int64(),
+			sql := fmt.Sprintf("INSERT INTO erc20(blocknum,blockhash,txid,`from`,`to`,token,`value`,gasprice,gaslimit,gasuse,createtime,status) VALUES(%d,'%s','%s','%s','%s','%s',%d,%d,%d,%d,'%s', %d)",
+				block.Number().Int64(), block.Hash().Hex(), tx.Hash().Hex(), from, to, token, value.Int64(),
 				tx.GasPrice().Int64(), gaslimt.Int64(), gasUsed.Int64(), time.Unix(int64(block.Time()), 0).Format("2006-01-02 15:04:05"), status)
+			_, err = db.Exec(sql)
 		} else {
-			err = db.InserEthtx(block.Number().Int64(), block.Hash().Hex(), tx.Hash().Hex(), from, to, value.Int64(),
+			sql := fmt.Sprintf("INSERT INTO eth(blocknum,blockhash,txid,`from`,`to`,`value`,gasprice,gaslimit,gasuse,createtime, status) VALUES(%d,'%s','%s','%s','%s',%d,%d,%d,%d,'%s',%d)",
+				block.Number().Int64(), block.Hash().Hex(), tx.Hash().Hex(), from, to, value.Int64(),
 				tx.GasPrice().Int64(), gaslimt.Int64(), gasUsed.Int64(), time.Unix(int64(block.Time()), 0).Format("2006-01-02 15:04:05"), status)
+
+			_, err = db.Exec(sql)
 		}
 		if err != nil {
 			fmt.Println("插入交易失败：", err.Error())
 			continue
 		}
 	}
+	tx.Commit()
 }

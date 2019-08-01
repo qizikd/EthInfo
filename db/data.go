@@ -107,7 +107,7 @@ func UpdateEthGasused(id int, Gasused int64, status int64) (err error) {
 		return
 	}
 	defer db.Close()
-	_, err = db.Exec(fmt.Sprintf("UPDATE eth SET gasuse = %d, `status` = %d WHERE id = %d ", Gasused, status, id))
+	_, err = db.Exec(fmt.Sprintf("UPDATE eth SET gasuse = %d, `status` = %d, update_status = 1 WHERE id = %d ", Gasused, status, id))
 	if err != nil {
 		glog.Error("更新失败 ", err.Error())
 		return
@@ -122,7 +122,7 @@ func UpdateErc20Gasused(id int, Gasused int64, status int64) (err error) {
 		return
 	}
 	defer db.Close()
-	_, err = db.Exec(fmt.Sprintf("UPDATE erc20 SET gasuse = %d, `status` = %d WHERE id = %d ", Gasused, status, id))
+	_, err = db.Exec(fmt.Sprintf("UPDATE erc20 SET gasuse = %d, `status` = %d, update_status = 1 WHERE id = %d ", Gasused, status, id))
 	if err != nil {
 		glog.Error("更新失败 ", err.Error())
 		return
