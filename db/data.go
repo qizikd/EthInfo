@@ -55,7 +55,7 @@ func GetEthTxs(lastid int, limit int) (txs []core.TxInfo, err error) {
 		return
 	}
 	defer db.Close()
-	sql := fmt.Sprintf("SELECT id,txid FROM eth WHERE id > %d  and update_status = 0 order by id asc limit %d", lastid, limit)
+	sql := fmt.Sprintf("SELECT id,txid FROM eth WHERE update_status = 0 order by id asc limit %d", limit)
 	//fmt.Println(sql)
 	rows, err := db.Query(sql)
 	if err != nil {
@@ -81,7 +81,7 @@ func GetErc20Txs(lastid int, limit int) (txs []core.TxInfo, err error) {
 		return
 	}
 	defer db.Close()
-	sql := fmt.Sprintf("SELECT id,txid FROM erc20 WHERE id > %d and update_status = 0 order by id asc limit %d", lastid, limit)
+	sql := fmt.Sprintf("SELECT id,txid FROM erc20 WHERE update_status = 0 order by id asc limit %d", limit)
 	//fmt.Println(sql)
 	rows, err := db.Query(sql)
 	if err != nil {

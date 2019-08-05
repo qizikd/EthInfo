@@ -15,6 +15,7 @@ import (
 	"time"
 )
 
+//var Host = "http://mainnet.infura.io/v3/ce285ffe4c67470fb0fe2b37ba6c4ee7"
 var Host = "http://127.0.0.1:8545"
 
 //var Host = "http://47.244.176.129:8545"
@@ -37,6 +38,7 @@ func Start() {
 		block, err := client.BlockByNumber(context.Background(), blocknum)
 		if err != nil {
 			time.Sleep(1000 * time.Millisecond)
+			fmt.Println("ERROR eth_getBlockByNumber:", err.Error())
 			continue
 		}
 		fmt.Printf("txnum:%d\n", len(block.Transactions()))
@@ -80,7 +82,7 @@ func UpdateEthGasUsed() {
 			tx := txs[i]
 			rec, err := client.TransactionReceipt(context.Background(), common.HexToHash(tx.TxId))
 			if err != nil {
-				fmt.Printf("获取交易接受详情失败(%s):%s\n", common.HexToHash(tx.TxId), err.Error())
+				fmt.Printf("获取eth交易接受详情失败(%s):%s\n", tx.TxId, err.Error())
 				continue
 			}
 			gasUsed := big.NewInt(int64(rec.GasUsed))
@@ -130,7 +132,7 @@ func UpdateErc20GasUsed() {
 			tx := txs[i]
 			rec, err := client.TransactionReceipt(context.Background(), common.HexToHash(tx.TxId))
 			if err != nil {
-				fmt.Printf("获取交易接受详情失败(%s):%s\n", common.HexToHash(tx.TxId), err.Error())
+				fmt.Printf("获取erc20交易接受详情失败(%s):%s\n", tx.TxId, err.Error())
 				continue
 			}
 			gasUsed := big.NewInt(int64(rec.GasUsed))
